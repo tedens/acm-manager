@@ -1,0 +1,59 @@
+# Default values for acm-manager.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/tedens/acm-manager
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []  # Add secret name if pulling from a private registry
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""  # Leave empty to use default generated name
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}  # e.g., fsGroup: 2000
+securityContext: {}     # e.g., runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 9443  # This should match the port exposed by the controller
+  targetPort: 8080  # This should match the containerPort
+
+resources: {}  # e.g., limits & requests
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080  # Match containerPort and service.targetPort
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+volumes: []        # Define if you need configmaps, secrets, or PVCs
+volumeMounts: []   # Must match volumes above
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

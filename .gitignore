@@ -50,5 +50,10 @@ testbin/
 
 # Ignore generated manifests (optional, if you rebuild them)
 config/crd/bases/
-config/rbac/*.yaml
 config/webhook/*.yaml
+
+# Helm charts
+charts/acm-manager/*.tgz
+# Ignore Helm chart build artifacts
+charts/acm-manager/dist/
+charts/acm-manager/Chart.lock
