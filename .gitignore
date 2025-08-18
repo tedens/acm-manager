@@ -1,0 +1,54 @@
+# Go build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go workspace stuff
+*.test
+*.out
+
+# Go modules
+vendor/
+
+# Kubebuilder-generated build cache and output
+_controller-gen
+_envtest
+
+# Build output
+_build/
+dist/
+
+# Config/testing artifacts
+*.log
+*.local
+*.lock
+coverage.out
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.DS_Store
+
+# Mac/Linux
+Thumbs.db
+
+# Helm or kustomize (optional)
+*.tgz
+*.tar.gz
+
+# Docker-related
+*.tar
+.env
+
+# Kubebuilder dev environment files
+testbin/
+
+# Ignore generated manifests (optional, if you rebuild them)
+config/crd/bases/
+config/rbac/*.yaml
+config/webhook/*.yaml
