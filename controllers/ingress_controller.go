@@ -134,7 +134,23 @@ func (r *IngressReconciler) ensureCertificate(ctx context.Context, domain string
 		}
 		for _, cert := range out.CertificateSummaryList {
 			if strings.EqualFold(aws.ToString(cert.DomainName), domain) {
-				return aws.ToString(cert.CertificateArn), nil
+				certArn := aws.ToString(cert.CertificateArn)
+				logger := log.FromContext(ctx)
+				logger.Info("Reusing existing ACM certificate", "domain", domain, "arn", certArn)
+
+				// Confirm ResourceRecord exists before proceeding
+				describe, err := r.ACMClient.DescribeCertificate(ctx, &acm.DescribeCertificateInput{
+					CertificateArn: aws.String(certArn),
+				})
+				if err != nil {
+					return certArn, err
+				}
+				options := describe.Certificate.DomainValidationOptions
+				if len(options) > 0 && options[0].ResourceRecord != nil {
+					// ResourceRecord already exists; skip DNS setup and validation wait
+					return certArn, nil
+				}
+				break // exit loop and proceed to DNS record creation if needed
 			}
 		}
 	}
@@ -145,6 +161,13 @@ func (r *IngressReconciler) ensureCertificate(ctx context.Context, domain string
 		Tags: []acmtypes.Tag{
 			{Key: aws.String("ManagedBy"), Value: aws.String("acm-manager")},
 		},
+	}
+
+	if cfg.ZoneID == "" {
+		_, err := r.findMatchingHostedZone(ctx, domain)
+		if err != nil {
+			return "", fmt.Errorf("failed to find matching Route53 zone for domain %s: %w", domain, err)
+		}
 	}
 
 	if cfg.Wildcard {
@@ -161,6 +184,28 @@ func (r *IngressReconciler) ensureCertificate(ctx context.Context, domain string
 	}
 
 	certArn := aws.ToString(resp.CertificateArn)
+
+	// Wait for ResourceRecord to be ready
+	resourceReady := false
+	for i := 0; i < 10; i++ {
+		describe, err := r.ACMClient.DescribeCertificate(ctx, &acm.DescribeCertificateInput{
+			CertificateArn: aws.String(certArn),
+		})
+		if err != nil {
+			return certArn, err
+		}
+		options := describe.Certificate.DomainValidationOptions
+		if len(options) > 0 && options[0].ResourceRecord != nil {
+			resourceReady = true
+			break
+		}
+		log.FromContext(ctx).Info("Waiting for ResourceRecord to be available", "attempt", i+1)
+		time.Sleep(5 * time.Second)
+	}
+
+	if !resourceReady {
+		return certArn, fmt.Errorf("resource record not available yet for domain: %s", domain)
+	}
 
 	if err := r.createRoute53ValidationRecords(ctx, certArn, cfg.ZoneID); err != nil {
 		logger := log.FromContext(ctx)
@@ -219,8 +264,10 @@ func (r *IngressReconciler) createRoute53ValidationRecords(ctx context.Context, 
 		logger.Info("Processing domain validation option", "domain", aws.ToString(option.DomainName))
 
 		record := option.ResourceRecord
+		logger.Info("ACM ResourceRecord", "record", record)
 		if record == nil {
-			continue
+			logger.Info("ResourceRecord is nil, skipping and requeuing")
+			return fmt.Errorf("resource record not available yet for domain: %s", aws.ToString(option.DomainName))
 		}
 
 		key := fmt.Sprintf("%s|%s|%s", aws.ToString(record.Name), record.Type, aws.ToString(record.Value))
@@ -278,6 +325,11 @@ func (r *IngressReconciler) findMatchingHostedZone(ctx context.Context, domain s
 	var longestMatchLen int
 
 	for _, zone := range list.HostedZones {
+		// Skip private zones
+		if zone.Config != nil && zone.Config.PrivateZone {
+			continue
+		}
+
 		zoneName := strings.TrimSuffix(aws.ToString(zone.Name), ".")
 		if strings.HasSuffix(domain, zoneName) && len(zoneName) > longestMatchLen {
 			matchedZoneID = aws.ToString(zone.Id)
@@ -286,7 +338,7 @@ func (r *IngressReconciler) findMatchingHostedZone(ctx context.Context, domain s
 	}
 
 	if matchedZoneID == "" {
-		return "", fmt.Errorf("no matching hosted zone found for domain: %s", domain)
+		return "", fmt.Errorf("no matching public hosted zone found for domain: %s", domain)
 	}
 
 	return strings.TrimPrefix(matchedZoneID, "/hostedzone/"), nil

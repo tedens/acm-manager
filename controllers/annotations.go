@@ -3,6 +3,8 @@ package controllers
 import (
 	"strings"
 	"time"
+
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // IngressConfig defines parsed annotation values for ACM management
@@ -22,13 +24,25 @@ var DefaultCertTTL = 365 * 24 * time.Hour
 
 // ParseIngressAnnotations parses acm.tedens.dev/* annotations into a config struct
 func ParseIngressAnnotations(annotations map[string]string) IngressConfig {
+	logger := logf.Log.WithName("annotations")
+
+	rawWildcard := strings.ToLower(annotations["acm.tedens.dev/wildcard"])
+	if rawWildcard == "true" {
+		logger.Info("Annotation overrides default: wildcard enabled")
+	}
+
+	rawDelete := strings.ToLower(annotations["acm.tedens.dev/delete-cert-on-ingress-delete"])
+	if rawDelete == "true" {
+		logger.Info("Annotation overrides default: delete cert on ingress delete enabled")
+	}
+
 	cfg := IngressConfig{
 		Managed:             annotations["acm.tedens.dev/managed"] == "true",
 		DomainOverride:      annotations["acm.tedens.dev/domain"],
 		ZoneID:              annotations["acm.tedens.dev/zone-id"],
-		Wildcard:            annotations["acm.tedens.dev/wildcard"] == "true",
+		Wildcard:            rawWildcard == "true",
 		ReuseExisting:       annotations["acm.tedens.dev/reuse-existing"] != "false",
-		DeleteCertOnIngress: annotations["acm.tedens.dev/delete-cert-on-ingress-delete"] == "true",
+		DeleteCertOnIngress: rawDelete == "true",
 	}
 
 	// Parse SANs
