@@ -1,0 +1,38 @@
+name: Publish Helm Chart
+
+on:
+  push:
+    paths:
+      - 'charts/**'
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Package chart
+        run: |
+          mkdir -p docs
+          helm package charts/acm-manager --destination docs
+
+      - name: Rebuild Helm repo index
+        run: |
+          helm repo index docs --url https://tedens.github.io/acm-manager
+
+      - name: Commit and push chart
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add docs
+          git commit -m "🤖 Publish Helm chart from charts/ changes" || echo "No changes to commit"
+          git push
