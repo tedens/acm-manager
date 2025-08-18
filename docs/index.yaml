@@ -1,0 +1,15 @@
+apiVersion: v1
+entries:
+  acm-manager:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2025-08-18T12:58:20.336016-05:00"
+    description: A controller for managing Public AWS Certificates in ACM to work
+      in tandem with ALB controller.
+    digest: d02bf95a4b5ad051e4dbbbc572c460f228eea8dd69c67ad58c1eb20631a0d9bd
+    name: acm-manager
+    type: application
+    urls:
+    - https://tedens.github.io/acm-manager/acm-manager-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-08-18T12:58:20.335425-05:00"

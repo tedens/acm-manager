@@ -38,8 +38,6 @@ coverage.out
 Thumbs.db
 
 # Helm or kustomize (optional)
-*.tgz
-*.tar.gz
 
 # Docker-related
 *.tar
@@ -52,8 +50,6 @@ testbin/
 config/crd/bases/
 config/webhook/*.yaml
 
-# Helm charts
-charts/acm-manager/*.tgz
 # Ignore Helm chart build artifacts
 charts/acm-manager/dist/
 charts/acm-manager/Chart.lock
