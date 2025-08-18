@@ -1,6 +1,21 @@
 apiVersion: v2
 name: acm-manager
-description: A controller for managing Public AWS Certificates in ACM to work in tandem with ALB controller.
+description: A controller for managing Public AWS Certificate Manager (ACM) via Ingress annotations
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
+
+keywords:
+  - acm
+  - ingress
+  - controller
+  - certificate-manager
+  - tls
+
+home: https://github.com/tedens/acm-manager
+sources:
+  - https://github.com/tedens/acm-manager
+maintainers:
+  - name: Anthony Edens
+
+dependencies: []
