@@ -1,135 +1,159 @@
 # acm-manager
-// TODO(user): Add simple overview of use/purpose
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+acm-manager is a Kubernetes controller that automatically manages public AWS ACM certificates for Ingress resources. It ensures that TLS certificates are created, validated, and attached to your ALBs using annotations and AWS Route 53 DNS records. The controller is designed to integrate seamlessly with ALB Ingress Controller-managed services in AWS EKS.
 
-## Getting Started
+---
 
-### Prerequisites
-- go version v1.24.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+## Features
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+- Automatically request public ACM certificates based on Ingress annotations
+- Validate certificates using DNS through Route 53
+- Patch Ingress resources with valid ACM certificate ARNs
+- Reuse or replace certificates based on configuration
+- Optional cleanup of certificates upon Ingress deletion
+- Support for wildcard certificates and zone ID overrides
+- Helm chart deployment supported
 
-```sh
-make docker-build docker-push IMG=<some-registry>/acm-manager:tag
+---
+
+## Prerequisites
+
+- Go v1.25.0+
+- Docker v28.3.2+
+- kubectl v1.28.2+
+- Access to a Kubernetes v1.32+ cluster
+- AWS IAM permissions to manage ACM, Route 53, and ALB
+
+---
+
+## Installation
+
+### Build and Push the Image
+
+```bash
+make docker-build docker-push IMG=<your-registry>/acm-manager:tag
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
 
-**Install the CRDs into the cluster:**
+### Deploy the Manager
 
-```sh
-make install
+```bash
+make deploy IMG=<your-registry>/acm-manager:tag
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+> **NOTE**: You may need `cluster-admin` privileges.
 
-```sh
-make deploy IMG=<some-registry>/acm-manager:tag
-```
+---
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+## Using the Controller
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+The controller watches `Ingress` objects with ACM annotations and automatically manages ACM certificate creation and ALB patching according to those annotations.
 
-```sh
-kubectl apply -k config/samples/
-```
+---
 
->**NOTE**: Ensure that the samples has default values to test it out.
+## Ingress Annotations Reference
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+The following annotations can be added to your `Ingress` resources to control how `acm-manager` behaves:
 
-```sh
+| Annotation                                      | Description                                                                 | Type    | Default   | Required |
+|------------------------------------------------|-----------------------------------------------------------------------------|---------|-----------|----------|
+| `acm.tedens.dev/managed`                       | Enable ACM management for this ingress                                     | `bool`  | `false`   | ✅       |
+| `acm.tedens.dev/domain`                        | Override the domain used for the certificate                               | `string`| *(none)*  | ❌       |
+| `acm.tedens.dev/zone-id`                       | Override the Route 53 hosted zone ID                                       | `string`| *(auto-discovered)* | ❌ |
+| `acm.tedens.dev/wildcard`                      | Request a wildcard certificate                                             | `bool`  | `false`   | ❌       |
+| `acm.tedens.dev/reuse-existing`               | Attempt to reuse an existing matching ACM certificate                      | `bool`  | `true`    | ❌       |
+| `acm.tedens.dev/delete-cert-on-ingress-delete` | Delete the certificate when the Ingress is deleted                         | `bool`  | `false`   | ❌       |
+
+✅ = Required to trigger ACM management  
+❌ = Optional annotations
+
+You must set `acm.tedens.dev/managed: "true"` for the controller to act on the ingress.
+
+---
+
+## Uninstall
+
+```bash
 kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
+make undeploy
 make uninstall
 ```
 
-**UnDeploy the controller from the cluster:**
+---
 
-```sh
-make undeploy
+## Helm Chart
+
+You can install this via Helm once the chart is published.
+
+### Local Helm Install
+
+```bash
+helm upgrade -i acm-manager ./charts/acm-manager -n acm-manager --create-namespace
 ```
 
-## Project Distribution
+### Add Repository
 
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/acm-manager:tag
+```bash
+helm repo add acm-manager https://tedens.github.io/acm-manager
+helm repo update
+helm install acm-manager/acm-manager -n acm-manager --create-namespace
 ```
 
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
+---
 
-2. Using the installer
+## GitHub Pages and Chart Distribution
 
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
+This repo automatically publishes the Helm chart to GitHub Pages using GitHub Actions when changes are made to the `charts/` directory.
 
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/acm-manager/<tag or branch>/dist/install.yaml
+A second GitHub Actions workflow regenerates the documentation site hosted on GitHub Pages when the `docs/` folder changes.
+
+---
+
+## Developer Notes
+
+### Generate YAML Bundle
+
+```bash
+make build-installer IMG=<your-registry>/acm-manager:tag
 ```
 
-### By providing a Helm Chart
+This creates `dist/install.yaml`.
 
-1. Build the chart using the optional helm plugin
+### Update Helm Chart from Source
 
-```sh
-kubebuilder edit --plugins=helm/v1-alpha
+```bash
+kubebuilder edit --plugins=helm/v1-alpha --force
 ```
 
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
+Manually reapply custom Helm settings if overwritten.
 
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
+---
+
+## IAM Policy
+
+The service account must have IAM permissions for the following:
+
+- `acm:RequestCertificate`
+- `acm:DescribeCertificate`
+- `acm:DeleteCertificate`
+- `route53:ChangeResourceRecordSets`
+- `route53:ListHostedZones`
+- `route53:ListResourceRecordSets`
+
+---
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+PRs welcome! Please fork, branch, and submit a pull request with detailed context and reasoning. Run:
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+```bash
+make help
+```
+
+To see available development commands.
+
+---
 
 ## License
 
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Licensed under the GNU General Public License v3.0. See [LICENSE](./LICENSE) for details.

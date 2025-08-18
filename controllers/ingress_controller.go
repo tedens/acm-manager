@@ -45,6 +45,25 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
+	if certArn, exists := ingress.Annotations["alb.ingress.kubernetes.io/certificate-arn"]; exists && cfg.Managed {
+		logger := log.FromContext(ctx)
+		describe, err := r.ACMClient.DescribeCertificate(ctx, &acm.DescribeCertificateInput{
+			CertificateArn: aws.String(certArn),
+		})
+		if err != nil {
+			logger.Error(err, "Failed to describe existing ACM certificate")
+			return ctrl.Result{}, err
+		}
+
+		status := describe.Certificate.Status
+		if status != acmtypes.CertificateStatusIssued {
+			logger.Info("Existing cert is not issued, proceeding with reconciliation", "status", status)
+		} else {
+			logger.Info("ACM certificate already issued and valid, skipping reconciliation")
+			return ctrl.Result{RequeueAfter: 12 * time.Hour}, nil
+		}
+	}
+
 	domain := cfg.DomainOverride
 	if domain == "" && len(ingress.Spec.Rules) > 0 {
 		domain = ingress.Spec.Rules[0].Host
