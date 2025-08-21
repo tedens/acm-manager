@@ -17,6 +17,7 @@ type IngressConfig struct {
 	CertTTL             time.Duration
 	ReuseExisting       bool
 	DeleteCertOnIngress bool
+	FallbackWildcard    bool
 }
 
 // DefaultCertTTL is used when no TTL is specified (1 year)
@@ -43,6 +44,7 @@ func ParseIngressAnnotations(annotations map[string]string) IngressConfig {
 		Wildcard:            rawWildcard == "true",
 		ReuseExisting:       annotations["acm.tedens.dev/reuse-existing"] != "false",
 		DeleteCertOnIngress: rawDelete == "true",
+		FallbackWildcard:    annotations["acm.tedens.dev/fallback-wildcard"] == "true",
 	}
 
 	// Parse SANs

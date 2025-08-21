@@ -63,6 +63,7 @@ The following annotations can be added to your `Ingress` resources to control ho
 | `acm.tedens.dev/wildcard`                      | Request a wildcard certificate                                             | `bool`  | `false`   | ❌       |
 | `acm.tedens.dev/reuse-existing`               | Attempt to reuse an existing matching ACM certificate                      | `bool`  | `true`    | ❌       |
 | `acm.tedens.dev/delete-cert-on-ingress-delete` | Delete the certificate when the Ingress is deleted                         | `bool`  | `false`   | ❌       |
+| `acm.tedens.dev/fallback-wildcard`  | Includes a wildcard certificate (must be created already) | `bool` | `false` | ❌ |
 
 ✅ = Required to trigger ACM management  
 ❌ = Optional annotations

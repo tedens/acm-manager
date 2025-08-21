@@ -106,15 +106,49 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if ingress.Annotations == nil {
 		ingress.Annotations = map[string]string{}
 	}
-	ingress.Annotations["alb.ingress.kubernetes.io/certificate-arn"] = certArn
+
+	certARNs := []string{certArn}
+	if cfg.FallbackWildcard {
+		wildcardArn, err := r.findFallbackWildcardCert(ctx, domain)
+		if err == nil && wildcardArn != "" {
+			certARNs = append([]string{wildcardArn}, certARNs...)
+		}
+	}
+
+	ingress.Annotations["alb.ingress.kubernetes.io/certificate-arn"] = strings.Join(certARNs, ",")
 
 	if err := r.Patch(ctx, &ingress, patch); err != nil {
 		logger.Error(err, "failed to patch ingress with cert ARN")
 		return ctrl.Result{}, err
 	}
 
-	logger.Info("Patched ingress with ACM cert ARN", "arn", certArn)
+	logger.Info("Patched ingress with ACM cert ARN", "arn", certARNs)
 	return ctrl.Result{RequeueAfter: 12 * time.Hour}, nil
+}
+
+func (r *IngressReconciler) findFallbackWildcardCert(ctx context.Context, domain string) (string, error) {
+	paginator := acm.NewListCertificatesPaginator(r.ACMClient, &acm.ListCertificatesInput{
+		CertificateStatuses: []acmtypes.CertificateStatus{
+			acmtypes.CertificateStatusIssued,
+		},
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		for _, cert := range page.CertificateSummaryList {
+			if cert.DomainName == nil || !strings.HasPrefix(*cert.DomainName, "*.") {
+				continue
+			}
+			if strings.HasSuffix(domain, strings.TrimPrefix(*cert.DomainName, "*.")) {
+				return aws.ToString(cert.CertificateArn), nil
+			}
+		}
+	}
+	return "", nil
 }
 
 func (r *IngressReconciler) deleteCertificateForDomain(ctx context.Context, domain string) error {
